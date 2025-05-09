@@ -6,15 +6,15 @@ plugins:
       concurrent: 2
       upstreams:
         - addr: "https://dns.google/dns-query"
-          bootstrap: "127.0.0.1:7874"
+          socks5: "127.0.0.1:7891"
         - addr: "https://cloudflare-dns.com/dns-query"
-          bootstrap: "127.0.0.1:7874"
+          socks5: "127.0.0.1:7891"
         - addr: "https://dns.quad9.net/dns-query"
-          bootstrap: "127.0.0.1:7874"
+          socks5: "127.0.0.1:7891"
         - addr: "https://dns.opendns.com/dns-query"
-          bootstrap: "127.0.0.1:7874"
+          socks5: "127.0.0.1:7891"
         - addr: "https://dns.adguard-dns.com/dns-query"
-          bootstrap: "127.0.0.1:7874"
+          socks5: "127.0.0.1:7891"
   
   - tag: forward_local
     type: forward
