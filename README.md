@@ -1,3 +1,23 @@
+**本代码 fork 自 [moreoronce/MosDNS-Config](https://github.com/moreoronce/MosDNS-Config) 在此感谢原作者。**
+
+相比原代码，本代码适合 AdGuardHome -> MosDNS -> OpenClash(fake-ip) 的网络结构，具体配置请参考 [【分享】【教程】主路由中AdGuardHome+MosDNS+Open克拉什折腾记录](https://www.right.com.cn/forum/thread-8355510-1-1.html)   
+本代码修改和使用的初衷是为了代替原 luci-app-mosdns `cn`走国内、`geolocation-!cn`走国外的简单粗暴方法（绕过大陆模式）。本代码的 DNS 查询相当于是 GFW 黑名单模式（PAC 模式），因此OpenClash 中的漏网之鱼都可以使用代理进行连接，减少一些本可以直连却使用代理的情况。对于本人这种机场流量拮据的来说合适不过了。但是缺点也很明显，访问国外的域名就必须走代理进行DNS查询得到结果后才能发起连接，当然 AdGuardHome 的缓存可以解决这一点；另外，就像 GFW 黑名单模式的缺点一样，如果 GFW 没有包含不可访问的域名，并且兜底也没进代理，客户端就只能直连而没法访问网站了，只能手动设置灰名单，强制这些域名进入代理。
+
+代码做出修改如下：
+- 注释缓存与去广告代码段，这部分功能将由 AdGuardHome 完成。
+- 适配原 luci-app-mosdns 的自定义规则列表：白名单、黑名单、灰名单、DDNS 域名、Hosts、重定向、PTR 黑名单。（流媒体将由 OpenClash 处理）
+- 对于 `geosite_location-!cn` 的域名查询做出修改如下：通过 OpenClash 代理访问国外 DNS 查询非大陆域名，`always_standby` 设置为 `false` 本意是为了在 OpenClash 代理的国外 DNS 无法返回结果时再使用国内 DNS 查询，等待时间为 5s，如果返回的都为国外 IP，则返回客户端，让客户端尝试直连。（GFW黑名单模式）
+```yaml
+  - tag: dns_nocn
+    type: fallback
+    args:
+      primary: forward_remote
+      secondary: forward_local
+      threshold: 5000
+      always_standby: false
+```
+- 兜底的漏网之鱼从原版的走国内查询变为走 OpenClash 代理。
+
 # 自用MosDNS配置
 
 - 支持ECS
