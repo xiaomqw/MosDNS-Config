@@ -17,6 +17,7 @@
       always_standby: false
 ```
 - 兜底的漏网之鱼从原版的走国内查询变为走 OpenClash 代理。
+- 对国内和国外的DNS进行合并，因为国内的腾讯和阿里都对 DOT 和 DOH 进行了限速，避免因为 MosDNS 查询过多而速度限制。
 
 # 自用MosDNS配置
 
@@ -42,6 +43,10 @@
 
 默认GeoSite和GeoIP的存放位置为`/var/mosdns/` ,请确保文件夹下含有`geoip_cn.txt`、`geosite_category-ads-all.txt`、`geosite_geolocation-!cn.txt`、`geosite_gfw.txt`、`geosite_cn.txt`以及`geoip_private.txt` ，OpenWRT用户可以通过luci-app-mosdns的GeoData Export功能自动下载解码生成。
 同时，在/etc/mosdns/下需要建立rule文件夹，并新建whitelist.txt和greylist.txt文件，用于自定义白名单和污染域名名单。DDNS类域名可放到白名单中。
+
+Openwrt 用户需要在 luci-app-mosdns 界面的 基本设置 -> GeoData导出 中设置：
+  1. GeoSite 标签：`cn`、`gfw`、`geolocation-!cn`
+  2. GeoIP 标签：`cn`
 
 # DNS处理流程：
 
