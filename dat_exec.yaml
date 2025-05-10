@@ -66,9 +66,3 @@ plugins:
     args:
       files:
         - "/etc/mosdns/rule/whitelist.txt"
-
-  - tag: stream_media # 流媒体
-    type: domain_set
-    args:
-      files:
-        - "/etc/mosdns/rule/streaming.txt"
