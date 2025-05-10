@@ -1,5 +1,5 @@
 log:
-  level: warn
+  level: info
   file: "/var/log/mosdns.log"
 
 api:
@@ -10,119 +10,71 @@ include:
   - "/etc/mosdns/dns.yaml"
 
 plugins:
-  - tag: reject_null_domain
-    type: sequence
-    args:
-      - exec: query_summary reject_null_domain
-      - exec: reject 3
-
-  - tag: reject_qtype65
-    type: sequence
-    args:
-      - exec: query_summary reject_qtype65
-      - exec: reject 3
-  
-  - tag: reject_block
-    type: sequence
-    args:
-      - exec: query_summary reject_block
-      - exec: reject 5
-
-  # - tag: reject_ad
-  #   type: sequence
-  #   args:
-  #     - exec: query_summary reject_adlist
-  #     - exec: reject 3
-
-  ################ 序列 #################
-  - tag: dns_nocn
-    type: fallback
-    args:
-      primary: forward_remote
-      secondary: forward_local
-      threshold: 5000
-      always_standby: false
-  
-  # dns-cn 序列
-  - tag: dns_cn
-    type: sequence
-    args:
-      - exec: $forward_local
-
-  - tag: dns_nocn_seq
-    type: sequence
-    args:
-      - exec: query_summary dns_nocn
-      - exec: $dns_nocn
-
-  - tag: dns_cn_seq
-    type: sequence
-    args:
-      - exec: query_summary dns_cn
-      - exec: $dns_cn
-
-  - tag: fallback_seq # 其他特殊情况统一交给clash处理
-    type: sequence
-    args:
-      - exec: query_summary fallback
-      - exec: $forward_openclash
-
-  - tag: other_seq # 预处理序列的特殊情况统一使用 dns_cn 处理
-    type: sequence
-    args:
-      - exec: query_summary other
-      - exec: $dns_cn
-
-  # query cn 域名
+  ################ 查询序列 #################
+  # cn 域名查询
   - tag: query_cn
     type: sequence
     args:
       - exec: $ecs_cn
-      - exec: $dns_cn_seq
-      - matches: qname $ddnslist
-        exec: return
-      - matches: qname $whitelist
-        exec: return
-      - matches: "!resp_ip $geoip_cn" # 响应非 cn ip
-        exec: drop_resp # 丢弃
+      - exec: $forward_domestic
+      # - matches: qname $ddnslist
+      #   exec: return
+      # - matches: qname $whitelist
+      #   exec: return
+      # - matches: "!resp_ip $geoip_cn" # 若解析结果存在国外IP
+      #   exec: drop_resp # 丢弃（该判断可能导致国内域名走漏网之鱼，故将代码注释）
 
-  # query nocn 域名
-  - tag: query_nocn
-    type: sequence
-    args:
-      - exec: $no_ecs
-      - exec: $dns_nocn_seq
-      - matches: "resp_ip $geoip_cn" # 响应存在 cn ip
-        exec: drop_resp # 丢弃
-
+  # GFW 域名查询
   - tag: query_gfw
     type: sequence
     args:
       - exec: $no_ecs
       - exec: $forward_openclash
 
-  # query fallback
-  - tag: query_fallback
+  # 非 cn 域名查询
+  - tag: query_nocn
     type: sequence
     args:
       - exec: $no_ecs
-      - exec: $fallback_seq
+      - exec: $fallback_nocn
+      - matches: "resp_ip $geoip_cn" # 响应存在 cn ip
+        exec: mark 10
+      - matches: mark 10
+        exec: query_summary drop_nocn # 日志
+      - matches: mark 10
+        exec: drop_resp # 丢弃
 
-  # # query lan
-  # - tag: query_lan
-  #   type: sequence
-  #   args:
-  #     - exec: $cache_lan
-  #     - matches: has_resp # 命中了 lan cache
-  #       exec: return
-  #     # - exec: $no_ecs
-  #     - exec: $local_seq
+  # 本地域名查询
+  - tag: query_lan
+    type: sequence
+    args:
+      - exec: $no_ecs
+      - exec: $forward_local
 
+  # 其他类型查询
+  - tag: query_other_pre
+    type: sequence
+    args:
+      - exec: $no_ecs
+      - exec: $forward_domestic
+      - exec: query_summary query_other_pre # 日志
+
+  # 漏网之鱼
+  - tag: query_other_main
+    type: sequence
+    args:
+      - exec: $no_ecs
+      - exec: $forward_openclash
+      - exec: query_summary query_other_main # 日志
+
+  ################ 解析结果处理序列 #################
+  # 预处理序列
   - tag: pre_handle
     type: sequence
     args:
       - exec: accept # 接受响应,终止流程
 
+  # 主序列
   - tag: main_handle
     type: sequence
     args:
@@ -132,7 +84,7 @@ plugins:
         exec: $ttl_modify
       - exec: accept # 接受响应,终止流程
 
-  # pre_sequence 结果处理 
+  # pre_sequence 结果处理
   - tag: has_resp_pre
     type: sequence
     args:
@@ -146,57 +98,62 @@ plugins:
       - matches: has_resp
         exec: goto main_handle
 
+  ################ 主程序 #################
   # pre_sequence
   - tag: pre_sequence
     type: sequence
     args:
-      - matches: qtype 65 # TYPE 65 类型|DNS服务器状态，拒绝该类型可避免某些IOS 应用无法上网。
-        exec: $reject_qtype65
-      - matches: "qname keyword::" # 无效域名
-        exec: $reject_null_domain
-      - matches: 
-        - "qtype 12"
-        - "ptr_ip $geoip_private" # 拒绝本地 PTR，应在AdGuardHome中的私人反向服务器中设置为dnsmasq的DNS地址
-        # exec: $query_lan
+      - matches: qtype 65 # TYPE 65 类型|DNS服务器状态，拒绝该类型可避免某些 IOS 应用无法上网。
         exec: reject 3
+      - matches: "qname keyword::" # 无效域名
+        exec: reject 3
+      - matches: qname $blocklist # 黑名单
+        exec: reject 5
+      # - matches: qname $geosite_ads-all # 广告域名（去广告由AdGuardHome完成）
+      #   exec: reject 5
 
       - exec: $hosts  # hosts
-      - exec: jump has_resp_main
+      - exec: jump has_resp_pre
       - exec: $redirect # redirect
-      - exec: jump has_resp_main
-      - matches: qname $blocklist # 黑名单
-        exec: $reject_block
+      - exec: jump has_resp_pre
+
+      - matches: # 本地 PTR，如使用AdGuardHome，应直接在adh的web界面中的私人反向服务器中设置为dnsmasq的DNS地址
+        - "qtype 12"
+        - "ptr_ip $geoip_private"
+        exec: $query_lan
+      - exec: jump has_resp_pre
 
       - matches: # 其他类型的DNS查询走国内DNS
         - "!qtype 1"
         - "!qtype 28"
-        exec: $other_seq
+        exec: $query_other_pre
       - exec: jump has_resp_pre
 
   # main_sequence
   - tag: main_sequence
     type: sequence
     args:
-      # - matches: qname $geosite_ads-all # ad 域名（去广告由AdGuardHome完成）
-      #   exec: $reject_ad
-      # - exec: $cache_wan # 缓存功能由AdGuardHome完成
+      # - exec: $cache_dns # 缓存功能由AdGuardHome完成
       # - exec: jump has_resp_main
 
       - matches: qname $ddnslist  # ddns
         exec: $query_cn
       - exec: jump has_resp_main
+      - matches: qname $whitelist # 白名单
+        exec: $query_cn
+      - exec: jump has_resp_main
       - matches: qname $geosite_cn # cn 域名
         exec: $query_cn
       - exec: jump has_resp_main
-      # 检查是否符合GFW域名规则
-      - matches: qname $geosite_gfw
+      - matches: qname $geosite_gfw # GFW 域名
         exec: $query_gfw
       - exec: jump has_resp_main
       - matches: qname $geosite_location-!cn # 非 cn 域名
         exec: $query_nocn
       - exec: jump has_resp_main
+
       # 域名漏网之鱼全部进入OpenClash
-      - exec: $query_fallback
+      - exec: $query_other_main
       - exec: jump has_resp_main
 
 
