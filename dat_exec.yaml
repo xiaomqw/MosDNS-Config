@@ -1,10 +1,10 @@
 plugins:
   ################## 数据源 ################
-  # - tag: geoip_private # 私网 ip
-  #   type: ip_set
-  #   args:
-  #     files:
-  #       - "/var/mosdns/geoip_private.txt"
+  - tag: geoip_private # 私网 ip
+    type: ip_set
+    args:
+      files:
+        - "/var/mosdns/geoip_private.txt"
 
   - tag: geoip_cn # cn ip
     type: ip_set
@@ -66,12 +66,6 @@ plugins:
     args:
       files:
         - "/etc/mosdns/rule/whitelist.txt"
-
-  - tag: local_ptr # PTR 黑名单
-    type: domain_set
-    args:
-      files:
-        - "/etc/mosdns/rule/local-ptr.txt"
 
   - tag: stream_media # 流媒体
     type: domain_set
