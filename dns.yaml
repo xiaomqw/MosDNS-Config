@@ -1,6 +1,6 @@
 plugins:
   ################ DNS #################
-  - tag: forward_remote
+  - tag: forward_oversea
     type: forward
     args:
       concurrent: 2
@@ -16,7 +16,7 @@ plugins:
         - addr: "https://dns.adguard-dns.com/dns-query"
           socks5: "127.0.0.1:7891"
   
-  - tag: forward_local
+  - tag: forward_domestic
     type: forward
     args:
       concurrent: 3
@@ -53,36 +53,55 @@ plugins:
     args:
       concurrent: 1
       upstreams:
-        - addr: 127.0.0.1:7874
+        - addr: 127.0.0.1:7874  # OpenClash 的 DNS 端口
+
+  - tag: forward_local
+    type: forward
+    args:
+      concurrent: 1
+      upstreams:
+        - addr: 127.0.0.1:5353  # dnsmasq 的 DNS 端口
 
   ################# 缓存 ################
-
-  # # 缓存 lan
-  # - tag: cache_lan
+  # - tag: cache_dns
   #   type: cache
   #   args:
-  #     size: 8192
-  #     lazy_cache_ttl: 86400
-  # # 缓存 wan
-  # - tag: cache_wan
-  #   type: cache
-  #   args:
-  #     size: 131072
+  #     size: 65535
   #     lazy_cache_ttl: 86400
 
   ################# TTL 覆写 ################
   - tag: ttl_modify
     type: "sequence"
     args:
-      exec: ttl 3600-86400
+      - exec: ttl 3600-86400
 
+  ################# 回滚机制（用于查询非cn域名） ################
+  # fallback 的备份序列，进入此序列就假设代理服务器宕机
+  - tag: seq_backup
+    type: sequence
+    args:
+      - exec: query_summary oversea_failure # 日志
+      - exec: $forward_domestic
+      - matches: has_resp # 有结果就马上返回，不做污染判断
+        exec: accept
+      - matches: "!has_resp"  # 连国内DNS也不响应就说明网络不通
+        exec: reject 2
+  
+  - tag: fallback_nocn
+    type: fallback
+    args:
+      primary: forward_oversea
+      secondary: seq_backup
+      threshold: 5000
+      always_standby: false # 等待5s若国外DNS无响应就启用国内DNS（且直接返回结果），无法访问比DNS泄露更让人糟心。
 
   ################# 其他插件 ################
   # 附加 ecs cn 信息
   - tag: ecs_cn
     type: "ecs_handler"
     args:
-      forward: true # 是否转发来自下游的 ecs (在adguardhome中设置)
+      forward: true # 是否转发来自下游的 ecs
+      # preset: "" # 发送预设 ecs(在adguardhome中设置ECS ip)
       send: true # 是否发送 ecs
       mask4: 24 # ipv4 掩码。默认 24
       mask6: 48 # ipv6 掩码。默认 48
@@ -91,8 +110,8 @@ plugins:
   - tag: no_ecs
     type: "ecs_handler"
     args:
-      forward: false # 是否转发来自下游的 ecs
-      preset: "" # 发送预设 ecs
-      send: false # 是否发送 ecs
+      forward: false
+      preset: ""
+      send: false
       mask4: 24
       mask6: 48 
