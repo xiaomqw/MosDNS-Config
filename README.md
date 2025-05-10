@@ -26,7 +26,6 @@
 - 支持GEOSITE
 - 支持自定义灰名单及白名单
 - 支持广告过滤
-- 支持数据导入Grafana
 - 本层级DNS处理无泄漏
 
 # 使用方法
@@ -40,6 +39,9 @@
 - `dat_exec.yaml`: 规则配置文件，负责定义各规则tag及规则来源文件。
 
 下载或克隆三个yaml文件，OpenWRT放到`/etc/mosdns`文件夹内。如果是luci-app-mosdns，需要选择使用自定义配置文件。其他系统可以通过`-c` 参数指定配置文件为`config_custom.yaml` 。
+
+本配置需要使用的服务端口如下，有变动的自行修改：  
+OpenClash 的 Sock5 端口：`7891`、Openclash 的代理端口：`7874`、dnsmasq 的 DNS 服务端口：`5353`、MosDNS 的 API 端口：`9091`、MosDNS 的 DNS 服务端口：`5335`
 
 重启 MosDNS `/etc/init.d/mosdns restart` 并清除 AdGuardHome 的 DNS 缓存
 
