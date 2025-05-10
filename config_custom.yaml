@@ -121,7 +121,6 @@ plugins:
   - tag: pre_handle
     type: sequence
     args:
-      - exec: $ttl_modify # 修改 ttl（单位：秒）
       - exec: accept # 接受响应,终止流程
 
   - tag: main_handle
@@ -155,23 +154,24 @@ plugins:
         exec: $reject_qtype65
       - matches: "qname keyword::" # 无效域名
         exec: $reject_null_domain
-      - matches:  # PTR 黑名单
+      - matches: 
         - "qtype 12"
-        - "qname $local_ptr"
+        - "ptr_ip $geoip_private" # 拒绝本地 PTR，应在AdGuardHome中的私人反向服务器中设置为dnsmasq的DNS地址
+        # exec: $query_lan
         exec: reject 3
 
       - exec: $hosts  # hosts
       - exec: jump has_resp_main
       - exec: $redirect # redirect
       - exec: jump has_resp_main
-      - matches: qname $blocklist
+      - matches: qname $blocklist # 黑名单
         exec: $reject_block
-      - matches: qtype 255 # TYPE 255 类型|DNS服务器拓展支持
+
+      - matches: # 其他类型的DNS查询走国内DNS
+        - "!qtype 1"
+        - "!qtype 28"
         exec: $other_seq
       - exec: jump has_resp_pre
-      # - matches: ptr_ip $geoip_private # private ip
-      #   exec: $query_lan
-      
 
   # main_sequence
   - tag: main_sequence
@@ -195,9 +195,10 @@ plugins:
       - matches: qname $geosite_location-!cn # 非 cn 域名
         exec: $query_nocn
       - exec: jump has_resp_main
-      # 漏网之鱼
+      # 域名漏网之鱼全部进入OpenClash
       - exec: $query_fallback
       - exec: jump has_resp_main
+
 
   - tag: sequence
     type: sequence
