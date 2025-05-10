@@ -48,7 +48,7 @@
 
 Openwrt 用户需要在 luci-app-mosdns 界面的 基本设置 -> GeoData导出 中设置：
   1. GeoSite 标签：`cn`、`gfw`、`geolocation-!cn`
-  2. GeoIP 标签：`cn`
+  2. GeoIP 标签：`cn`、`private`
 
 # DNS处理流程：
 
